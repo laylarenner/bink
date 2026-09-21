@@ -1,11 +1,11 @@
 {
-  "name": "content-strategist",
+  "name": "bink",
   "version": "0.1.0",
   "private": true,
   "scripts": {
     "dev": "next dev --port 3210",
-    "build": "next build",
-    "start": "next start --port 3210",
+    "build": "prisma migrate deploy && next build",
+    "start": "next start --port ${PORT:-3210}",
     "lint": "eslint",
     "db:migrate": "prisma migrate dev",
     "db:studio": "prisma studio",
