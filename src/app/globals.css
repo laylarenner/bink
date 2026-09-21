@@ -1,0 +1,85 @@
+@import "tailwindcss";
+
+/* Design tokens — shared look with Sociable. */
+:root {
+  /* Bink's palette: orange (primary), purple (x2 accents), peach, butter, sage green. */
+  --background: #fdf4ee;
+  --foreground: #2b1e29;
+
+  --color-cream: #fdf4ee;
+  --color-cream-soft: #faece0;
+  --color-coral: #e8590c;
+  --color-coral-dark: #b8460e;
+  --color-peach: #fce0d0;
+  --color-butter: #f7c9a3;
+  --color-butter-text: #9a4b12;
+  --color-sky: #dcd3f5;
+  --color-sky-text: #5b4b9e;
+  --color-lilac: #f0d9f2;
+  --color-lilac-text: #8b3f8c;
+  --color-sage: #cfe3cb;
+  --color-sage-text: #3f6b3a;
+  --color-sand: #e7d9c9;
+  --color-rose: #d64545;
+  --color-ink: #2b1e29;
+  --color-ink-soft: #7a6470;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-cream: var(--color-cream);
+  --color-cream-soft: var(--color-cream-soft);
+  --color-coral: var(--color-coral);
+  --color-coral-dark: var(--color-coral-dark);
+  --color-peach: var(--color-peach);
+  --color-butter: var(--color-butter);
+  --color-butter-text: var(--color-butter-text);
+  --color-sky: var(--color-sky);
+  --color-sky-text: var(--color-sky-text);
+  --color-lilac: var(--color-lilac);
+  --color-lilac-text: var(--color-lilac-text);
+  --color-sage: var(--color-sage);
+  --color-sage-text: var(--color-sage-text);
+  --color-sand: var(--color-sand);
+  --color-rose: var(--color-rose);
+  --color-ink: var(--color-ink);
+  --color-ink-soft: var(--color-ink-soft);
+  --font-sans: var(--font-quicksand);
+  --font-display: var(--font-baloo);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+}
+
+@keyframes brand-shine {
+  to {
+    background-position: 200% center;
+  }
+}
+
+.shine-text {
+  background-image: linear-gradient(
+    100deg,
+    #b8460e 0%,
+    #8b3f8c 18%,
+    #e8590c 36%,
+    #9a4b12 54%,
+    #8b3f8c 72%,
+    #e8590c 90%,
+    #b8460e 100%
+  );
+  background-size: 250% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: brand-shine 6s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shine-text {
+    animation: none;
+  }
+}

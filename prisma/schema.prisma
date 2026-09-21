@@ -1,0 +1,211 @@
+// Prisma schema — this demo deployment runs on Postgres (Railway).
+// Run `npx prisma migrate dev` after changing this file.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+/// One person we are building a brand strategy for.
+model Profile {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  /// Which anonymous demo visitor this belongs to (cookie-based). Null for
+  /// profiles created before guest mode existed; never shown to any guest.
+  guestId String?
+
+  // --- What the user gave us ---
+  displayName    String?
+  githubUsername String?
+  xHandle        String?
+  linkedinUrl    String?
+  websiteUrl     String?
+  notes          String?
+
+  // --- Step 1: what we concluded from their material ---
+  summary      String?   // plain-English text, used as context by later steps
+  summaryJson  String?   // structured version of the same summary (JSON)
+  summarizedAt DateTime?
+
+  // --- Step 2: strategy (filled in by the strategy chat, or edited by hand) ---
+  positioning       String?
+  pillars           String?   // JSON array of {name, description}: the 2-3 things to be known for
+  audience          String?
+  topics            String?   // JSON array of strings: concrete things to post about
+  strategyNotes     String?   // the user's own parameters: what to share, what to avoid
+  researchKeywords  String?   // JSON array of search phrases for news and peer research
+  peerXHandles      String?   // JSON array of X handles to watch
+  peerLinkedinUrls  String?   // JSON array of LinkedIn profile URLs to watch
+  peerSearchQuery   String?   // who counts as a peer, e.g. "GTM marketers, growth marketing" — kept separate from `topics` (what THEY post about) so a peer search never confuses the two
+  strategyUpdatedAt DateTime?
+  zernioProfileId   String? // the Zernio sub-profile that owns this person's connected LinkedIn/X accounts
+  chatStartedAt     DateTime? // atomic claim so two concurrent page loads can't both open the chat
+
+  sources  Source[]
+  samples  WritingSample[]
+  messages StrategyMessage[]
+  uploads  Upload[]
+  research ResearchItem[]
+  ideas    ContentIdea[]
+  drafts   Draft[]
+
+  @@index([guestId])
+}
+
+/// Tracks how many expensive (Anthropic/Apify) actions one anonymous demo
+/// visitor has run today, so a single guest can't run up the API bill.
+/// Only consulted when DEMO_MODE is on.
+model GuestUsage {
+  guestId     String   @id
+  count       Int      @default(0)
+  windowStart DateTime @default(now())
+}
+
+/// One post idea: a specific angle, not a raw scraped item. Cards on the Content Ideas tab.
+model ContentIdea {
+  id        String   @id @default(cuid())
+  profileId String
+  profile   Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  source   String  // own | news | peer — which of the three sources this came from
+  title    String  // short hook, e.g. "The $2k retainer AI replaces"
+  angle    String  // 1-3 sentences: the actual take to write from
+  platform String  // linkedin | x | both — suggested best fit
+  evidence String  // why this fits: the project/theme, or the article/peer post it's reacting to
+  pillar   String? // which strategy pillar this serves, if any
+
+  sourceUrl   String? // the article or peer post this came from, if source != own
+  sourceTitle String? // article title or peer author, for display without a second fetch
+
+  status    String   @default("new") // new | kept | dismissed
+  createdAt DateTime @default(now())
+
+  drafts Draft[]
+
+  @@index([profileId, status])
+}
+
+/// A generated post, ready to review and use. One idea can have a draft per platform.
+model Draft {
+  id        String      @id @default(cuid())
+  profileId String
+  profile   Profile     @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  ideaId    String?
+  idea      ContentIdea? @relation(fields: [ideaId], references: [id], onDelete: SetNull)
+
+  platform String // linkedin | x
+  text     String
+  model    String? // which model wrote the current text, for debugging
+
+  status       String    @default("draft") // draft | scheduled | posted | failed
+  scheduledFor DateTime? // when it's queued to go out
+  postedAt     DateTime? // when it actually went out
+  postUrl      String?   // the live post's URL, once Zernio reports one
+  postError    String?   // the last publish attempt's error, if it failed
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([profileId, status])
+}
+
+/// One turn of the strategy chat.
+model StrategyMessage {
+  id          String   @id @default(cuid())
+  profileId   String
+  profile     Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  role        String   // user | assistant
+  content     String
+  attachments String?  // JSON array of {name, chars} for files sent with this message
+  createdAt   DateTime @default(now())
+
+  @@index([profileId, createdAt])
+}
+
+/// A file the user gave the strategist. We keep the extracted text, not the file.
+model Upload {
+  id        String   @id @default(cuid())
+  profileId String
+  profile   Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  name      String
+  mimeType  String
+  text      String
+  chars     Int
+  createdAt DateTime @default(now())
+
+  @@index([profileId])
+}
+
+/// Something we found while researching: a peer's post, or a news article / blog post.
+model ResearchItem {
+  id          String    @id @default(cuid())
+  profileId   String
+  profile     Profile   @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  kind        String    // peer_post | article
+  platform    String    // x | linkedin | web
+  query       String    // the keyword, handle or URL that found it
+  title       String?
+  text        String
+  url         String
+  author      String?
+  likes       Int       @default(0)
+  comments    Int       @default(0)
+  publishedAt DateTime?
+  status      String    @default("new") // new | kept | dismissed
+  createdAt   DateTime  @default(now())
+
+  @@unique([profileId, url])
+  @@index([profileId, kind, status])
+}
+
+/// One scraped data source for a profile (GitHub, X, LinkedIn, website, uploads, notes).
+model Source {
+  id        String   @id @default(cuid())
+  profileId String
+  profile   Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  kind      String            // github | x | linkedin | website | upload | notes
+  label     String?           // human label, e.g. "@handle" or "github.com/user"
+  status    String  @default("idle") // idle | done | error
+  rawJson   String?           // everything the scraper returned (JSON)
+  digest    String?           // compact plain-text version we feed to the model
+  itemCount Int     @default(0)
+  error     String?
+  fetchedAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([profileId, kind])
+}
+
+/// A post the person actually wrote. Used as a voice sample when writing new posts.
+model WritingSample {
+  id        String   @id @default(cuid())
+  profileId String
+  profile   Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  platform  String            // x | linkedin | blog
+  externalId String?
+  text      String
+  url       String?
+  postedAt  DateTime?
+  likes     Int     @default(0)
+  reposts   Int     @default(0)
+  replies   Int     @default(0)
+  isReply   Boolean @default(false)
+  /// Left out of the writing samples: kept in the database, never shown to the model.
+  excluded  Boolean @default(false)
+  /// Why: "personal" (auto-filtered), "manual" (user clicked ✕), "kept" (user restored it).
+  excludeReason String?
+  /// 0 = personal, 1 = thin professional, 2 = professional opinion, 3 = directly about their own work or business.
+  signal    Int     @default(0)
+  createdAt DateTime @default(now())
+
+  @@unique([profileId, platform, externalId])
+  @@index([profileId, platform])
+}
