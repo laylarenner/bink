@@ -184,19 +184,22 @@ export async function summarizeProfile(input: SummarizeInput): Promise<Summarize
 }
 
 async function runOnce(client: Anthropic, messages: Anthropic.MessageParam[]) {
-  // Fable 5.1 thinks by default, so `thinking` is left out entirely (the docs warn an
-  // explicit `{type: "adaptive"}` is fine too, but omitting is simplest). The SDK
-  // auto-scales the request timeout for a max_tokens this large, so a plain (non-streaming)
-  // call is safe here and lets us use betaZodOutputFormat's automatic parsing.
-  return client.beta.messages.parse({
-    model: MODEL,
-    max_tokens: 32000,
-    system: SYSTEM_PROMPT,
-    messages,
-    betas: [REFUSAL_FALLBACK_BETA],
-    fallbacks: "default",
-    output_config: { format: betaZodOutputFormat(ProfileSummarySchema), effort: "medium" },
-  });
+  // Fable 5.1 thinks by default, so `thinking` is left out entirely. The SDK refuses a
+  // non-streaming call with max_tokens above ~21k ("Streaming is required...") unless a
+  // timeout is set explicitly, so one is passed here. That keeps betaZodOutputFormat's
+  // automatic parsing, which streaming would not give us.
+  return client.beta.messages.parse(
+    {
+      model: MODEL,
+      max_tokens: 32000,
+      system: SYSTEM_PROMPT,
+      messages,
+      betas: [REFUSAL_FALLBACK_BETA],
+      fallbacks: "default",
+      output_config: { format: betaZodOutputFormat(ProfileSummarySchema), effort: "medium" },
+    },
+    { timeout: 10 * 60 * 1000 },
+  );
 }
 
 /** Safety net for rule 7: swap any em dash the model still typed for a comma. */
